@@ -68,7 +68,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 """
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://sms\.showers-hostel\.com$",  # Your frontend domain
-    r"^https://steps-wine\.vercel\.app$",  # Backend (required for only testing purposes)
+#r"^https://steps-wine\.vercel\.app$",  # Backend (required for only testing purposes)
 ]
 
 CORS_URLS_REGEX = r"^/api/.*$" # Limiting CORS to just my API and not letting it access all the URLs.
