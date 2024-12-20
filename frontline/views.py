@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view,permission_classes, throttle_clas
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from . models import *
-from rest_framework.throttling import UserRateThrottle
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 
 def home(request):
@@ -15,6 +15,7 @@ def home(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def register(request):
     if request.method =="POST":
         serializer = RegistrationSerializer(data=request.data)
@@ -28,6 +29,7 @@ def register(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def login(request):
     serializer = loginSerializer(data = request.data)
     if serializer.is_valid():
@@ -38,6 +40,7 @@ def login(request):
     
 
 @api_view(['GET','PUT','PATCH']) #PATCH is for testing purposes
+@throttle_classes([UserRateThrottle])
 def ProfileManager(request):
     try:
         user_profile = UserProfile.objects.get(user_id=request.user.pk)

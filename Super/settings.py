@@ -60,12 +60,26 @@ ROOT_URLCONF = 'Super.urls'
 AUTH_USER_MODEL = 'frontline.CustomUser'
 
 #CORS_ALLOWED_ORIGINS = []
+"""
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://\w+\.showers-hostel\.com$", # example should be changed to match my domain name 
     r"^https://[a-zA-Z0-9-]+\.showers-hostel\.com$"  # Allows subdomains with hyphens (e.g., school-name.dsms.com)
 ]
+"""
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://sms\.showers-hostel\.com$",  # Your frontend domain
+    r"^https://steps-wine\.vercel\.app$",  # Backend (required for only testing purposes)
+]
 
 CORS_URLS_REGEX = r"^/api/.*$" # Limiting CORS to just my API and not letting it access all the URLs.
+
+# settings.py
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+}
+
 
 TEMPLATES = [
     {
@@ -131,7 +145,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 100,
