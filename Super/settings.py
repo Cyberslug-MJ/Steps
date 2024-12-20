@@ -73,13 +73,6 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 CORS_URLS_REGEX = r"^/api/.*$" # Limiting CORS to just my API and not letting it access all the URLs.
 
-# settings.py
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-}
-
 
 TEMPLATES = [
     {
@@ -156,7 +149,10 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
         'user': '1000/day' # throttle rate for an AuthenticatedUser
-    }
+    },
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ]
 }
 
 
