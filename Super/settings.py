@@ -151,9 +151,9 @@ REST_FRAMEWORK = {
         'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
         'user': '1000/day' # throttle rate for an AuthenticatedUser
     },
-    #'DEFAULT_RENDERER_CLASSES': [
-    #    'rest_framework.renderers.JSONRenderer',
-    #]
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+]
 }
 
 
