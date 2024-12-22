@@ -3,7 +3,7 @@ from rest_framework import serializers
 from .models import *
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.password_validation import validate_password as vp
 from rest_framework.exceptions import ValidationError
 
 
@@ -24,7 +24,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     def validate_password(self, value):
         try:
-            validate_password(value)  # Uses Django's built-in validators
+            vp(value)  # Uses Django's built-in validators
         except ValidationError as e:
             raise serializers.ValidationError({"password":list(e.messages)})
         return value
