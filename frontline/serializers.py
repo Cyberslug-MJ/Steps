@@ -29,6 +29,10 @@ class RegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password":list(e.messages)})
         return value
     
+    def validate(self, attrs):
+        # Manually validate password since validate_<field> methods are isolated
+        self.validate_password(attrs.get('password'))
+        return super().validate(attrs)
 
     def create(self,validated_data):
 
