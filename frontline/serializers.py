@@ -3,6 +3,8 @@ from rest_framework import serializers
 from .models import *
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.password_validation import validate_password
+from rest_framework.exceptions import ValidationError
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -20,6 +22,12 @@ class RegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This email is already in use")
         return value
 
+    def validate_password(self, value):
+        try:
+            validate_password(value)  # Uses Django's built-in validators
+        except ValidationError as e:
+            raise serializers.ValidationError(list(e.messages))  # Convert to serializer error format
+        return value
     
 
     def create(self,validated_data):
