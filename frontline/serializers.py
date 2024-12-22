@@ -6,11 +6,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8,write_only=True)
     class Meta:
         model = CustomUser
-        fields = ['email','password']
+        fields = ['first_name','last_name','email','password']
 
     #CHECK  THE EMAIL 
     def validate_email(self,value):

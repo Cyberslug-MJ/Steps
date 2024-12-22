@@ -59,7 +59,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'Super.urls'
 AUTH_USER_MODEL = 'frontline.CustomUser'
 
-CORS_ALLOWED_ORIGINS = ['*']
+CORS_ALLOWED_ORIGINS = ['https://*']
 """
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://\w+\.showers-hostel\.com$", # example should be changed to match my domain name 
