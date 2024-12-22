@@ -11,7 +11,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
-    password = serializers.CharField(min_length=8,write_only=True)
+    password = serializers.CharField(write_only=True)
     class Meta:
         model = CustomUser
         fields = ['first_name','last_name','email','password']
@@ -26,7 +26,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         try:
             validate_password(value)  # Uses Django's built-in validators
         except ValidationError as e:
-            raise serializers.ValidationError(list(e.messages))  # Convert to serializer error format
+            raise serializers.ValidationError({"password":list(e.messages)})
         return value
     
 
