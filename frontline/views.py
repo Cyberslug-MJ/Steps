@@ -21,7 +21,7 @@ def register(request):
         serializer = RegistrationSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+            return Response({"detail":"User was created successfully"},status=status.HTTP_200_OK)
 
         else:
             return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
@@ -31,7 +31,7 @@ def register(request):
 @permission_classes([AllowAny])
 @throttle_classes([AnonRateThrottle])
 def login(request):
-    serializer = loginSerializer(data = request.data)
+    serializer = loginSerializer(data = request.data,context={"request":request})
     if serializer.is_valid():
         return Response({"data":serializer.validated_data},status=status.HTTP_200_OK)
     
@@ -41,9 +41,9 @@ def login(request):
 
 @api_view(['GET','PUT','PATCH']) #PATCH is for testing purposes
 @throttle_classes([UserRateThrottle])
-def ProfileManager(request):
+def ProfileManager(request,pk):
     try:
-        user_profile = UserProfile.objects.get(user_id=request.user.pk)
+        user_profile = UserProfile.objects.get(user_id=pk)
     except UserProfile.DoesNotExist:
         return Response({"detail":"Profile does not exist"},status=status.HTTP_404_NOT_FOUND)
     
@@ -56,7 +56,7 @@ def ProfileManager(request):
     serializer = UserProfileSerializer(user_profile,data=request.data,partial=partial)
     if serializer.is_valid():
         serializer.save()
-        return Response({"detail":"Profile updated successfully","data":serializer.data},status=status.HTTP_200_OK)
+        return Response({"detail":"Profile updated","data":serializer.data},status=status.HTTP_200_OK)
     else:
         return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
     

@@ -46,13 +46,8 @@ class loginSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['email','password']
-
-    def validate_email(self,value):
-        if CustomUser.objects.filter(email=value).exists():
-            return value 
-        else:
-            raise serializers.ValidationError("Invalid credentials provided")
     
+
     def validate(self,data):
         email = data['email']
         password = data['password']
@@ -65,6 +60,10 @@ class loginSerializer(serializers.ModelSerializer):
             data.pop('password',None)
             data["refresh_token"] = str(refresh)
             data["access_token"] = str(refresh.access_token)
+            data['role'] = user.role 
+            data['school'] = user.school_name 
+            data['user_id'] = user.id
+
             return data 
 
         else:
