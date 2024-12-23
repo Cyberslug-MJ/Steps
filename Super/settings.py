@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-f-^4t8^*m9g%ix%^=9^dzvi1goo&8^$#a)f#-a)nlmj!4a#)p-'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*'] # ALLOWED_HOSTS = ['.vercel.app'] allows the backend and any other vercel services to connect to the backend and the backend to itself. But I have set it to the Frontend domain so that only the frontend would have access to the backend.
 
@@ -46,7 +46,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -60,17 +60,7 @@ ROOT_URLCONF = 'Super.urls'
 AUTH_USER_MODEL = 'frontline.CustomUser'
 
 CORS_ALLOWED_ORIGINS = ['https://*']
-"""
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://\w+\.showers-hostel\.com$", # example should be changed to match my domain name 
-    r"^https://[a-zA-Z0-9-]+\.showers-hostel\.com$"  # Allows subdomains with hyphens (e.g., school-name.dsms.com)
-]
-"""
-"""
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://sms\.showers-hostel\.com$",  # Your frontend domain
-#r"^https://steps-wine\.vercel\.app$",  # Backend (required for only testing purposes)
-]"""
+
 
 CORS_URLS_REGEX = r"^/api/.*$" # Limiting CORS to just my API and not letting it access all the URLs.
 
