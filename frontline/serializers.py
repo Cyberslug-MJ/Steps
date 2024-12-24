@@ -89,15 +89,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
     firstname = serializers.CharField(max_length=100)
     lastname = serializers.CharField(max_length=100)
     email = serializers.EmailField(required=False,read_only=True)
-    #phone_number = serializers.CharField(required=False,default="N/A")
     address = serializers.CharField(max_length=255,required=False)
 
-    def validate_phone_number(self,value):
-        if UserProfile.objects.filter(phone_number=value).exclude(pk=self.instance.pk).exists():
-            raise serializers.ValidationError("Phone number is already in use")
-        else:
-            return value
-    
+
     class Meta:
         model = UserProfile
         fields = ['profile_picture','firstname','lastname','email','address']

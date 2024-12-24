@@ -13,7 +13,6 @@ def CreateProfile(sender,created,instance,**kwargs):
             lastname = instance.last_name,
             email = instance.email
         )
-        #print('User Profile Created')
 
     else:
         updated = False
@@ -31,4 +30,3 @@ def CreateProfile(sender,created,instance,**kwargs):
 
         if updated:
             instance.profile.save()
-        #    print('User Profile Updated')

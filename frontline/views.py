@@ -10,7 +10,7 @@ from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 
 def home(request):
-    return HttpResponse("Hi There! this is Home :)")
+    return HttpResponse("Hi There! this is Home :")
 
 
 @api_view(['POST'])

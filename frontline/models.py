@@ -88,7 +88,6 @@ class UserProfile(models.Model):
     firstname = models.CharField(max_length=100,blank=True,default="")
     lastname = models.CharField(max_length=100,blank=True,default="")
     email = models.EmailField(blank=True)
-    #phone_number = PhoneNumberField(blank=True)
     address = models.CharField(max_length=255,blank=True)
 
     def __str__(self):
@@ -102,7 +101,6 @@ class UserProfile(models.Model):
         user.first_name = self.firstname
         user.last_name = self.lastname
         user.email = self.email
-        #user.phone_number = self.phone_number
         user.save()
         super().save(*args, **kwargs)
 
