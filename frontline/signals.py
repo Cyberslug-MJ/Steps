@@ -1,10 +1,10 @@
-from .models import CustomUser as User
+from .models import CustomUser
 from django.db.models.signals import post_save
 from . models import *
 from django.dispatch import receiver
 
 
-@receiver(post_save,sender=User)
+@receiver(post_save, sender=CustomUser)
 def CreateProfile(sender,created,instance,**kwargs):
     if created:
         UserProfile.objects.create(
