@@ -155,3 +155,14 @@ def AnnouncementDetail(request,pk):
         
         else:
             return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view('GET')
+@permission_classes([AllowAny])
+def profiles(request):
+    user_profiles = UserProfile.objects.all()
+    count = user_profiles.count()
+    if count == 0:
+        return Response({"No profiles found"},status=status.HTTP_204_NO_CONTENT)
+    serializer = UserProfileSerializer(user_profiles,many=True)
+    return Response({"data":serializer.data},status=status.HTTP_200_OK)

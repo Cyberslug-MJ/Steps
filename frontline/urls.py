@@ -9,5 +9,6 @@ urlpatterns = [
     path('api/announcements',views.Announcement,name='api-announcements'),
     path('api/announcements/<int:pk>/',views.AnnouncementDetail,name='api-announcement-detail'),
     path('api/events',views.EventScheduler,name='events'),
-    path('api/events/<int:pk>/',views.EventDetail,name='event-detail')
+    path('api/events/<int:pk>/',views.EventDetail,name='event-detail'),
+    path('api/profiles',views.profiles,name='profiles'),
 ]
