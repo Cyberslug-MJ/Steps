@@ -152,8 +152,12 @@ REST_FRAMEWORK = {
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
+        'HOST': 'ep-red-sunset-a4mtpla2-pooler.us-east-1.aws.neon.tech',  # Neon pooled endpoint
+        'USER': 'neondb_owner',                     # Neon database user
+        'NAME': 'neondb',                           # Neon database name
+        'PASSWORD': 'WbF3jvD2cOrV',                 # Neon database password
+        'PORT': '5432',     
     }
 }
 
