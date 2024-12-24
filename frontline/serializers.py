@@ -86,8 +86,8 @@ class loginSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.URLField()
-    firstname = serializers.CharField(max_length=100,required=False,default="N/A")
-    lastname = serializers.CharField(max_length=100,required=False,default="N/A")
+    firstname = serializers.CharField(max_length=100)
+    lastname = serializers.CharField(max_length=100)
     email = serializers.EmailField(required=False,read_only=True)
     #phone_number = serializers.CharField(required=False,default="N/A")
     address = serializers.CharField(max_length=255,required=False)
@@ -107,8 +107,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         instance.profile_picture = validated_data.get('profile_picture', instance.profile_picture)
         instance.firstname = validated_data.get('firstname', instance.firstname)
         instance.lastname = validated_data.get('lastname', instance.lastname)
-        #instance.email = validated_data.get('email', instance.email)
-        #instance.phone_number = validated_data.get('phone_number', instance.phone_number)
         instance.address = validated_data.get('address', instance.address)
         instance.save()
         return instance

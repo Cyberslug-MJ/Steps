@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-f-^4t8^*m9g%ix%^=9^dzvi1goo&8^$#a)f#-a)nlmj!4a#)p-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*'] # ALLOWED_HOSTS = ['.vercel.app'] allows the backend and any other vercel services to connect to the backend and the backend to itself. But I have set it to the Frontend domain so that only the frontend would have access to the backend.
+ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and any other vercel services to connect to the backend and the backend to itself. But I have set it to the Frontend domain so that only the frontend would have access to the backend.
 
 
 # Application definition
@@ -59,10 +59,10 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'Super.urls'
 AUTH_USER_MODEL = 'frontline.CustomUser'
 
-CORS_ALLOWED_ORIGINS = ['https://*']
+CORS_ALLOW_ALL_ORIGINS = True
 
 
-CORS_URLS_REGEX = r"^/api/.*$" # Limiting CORS to just my API and not letting it access all the URLs.
+CORS_URLS_REGEX = r"^/api/.*$"
 
 
 TEMPLATES = [
@@ -149,7 +149,6 @@ REST_FRAMEWORK = {
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
@@ -160,7 +159,6 @@ DATABASES = {
         'PORT': '5432',     
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

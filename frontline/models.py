@@ -49,8 +49,8 @@ class CustomUser(AbstractBaseUser,PermissionsMixin):
     role_choices    =(("Admin","Admin"),("Parent","Parent"),("Student","Student"),("Teacher","Teacher"))
     role            =models.CharField(max_length=7,choices=role_choices,db_index=True)
     school_name     =models.CharField(max_length=200,blank=True,db_index=True,null=True)
-    first_name      =models.CharField(verbose_name='first_name',max_length=200,default='N/A',blank=True)
-    last_name       =models.CharField(verbose_name='last_name',max_length=200,default='N/A',blank=True)
+    first_name      =models.CharField(verbose_name='first_name',max_length=200,blank=True)
+    last_name       =models.CharField(verbose_name='last_name',max_length=200,blank=True)
     approved        =models.BooleanField(verbose_name='approved',default=False)
 
 
@@ -85,11 +85,11 @@ class UserProfile(models.Model):
     user = models.OneToOneField(CustomUser,on_delete=models.CASCADE,primary_key=True,verbose_name='User Profile',related_name='profile')
     profile_picture = models.URLField(default="https://my-bucket.s3.amazonaws.com/my-folder/my-image.jpg?AWSAccessKeyId=EXAMPLE&Expires=1672531199&Signature=abcdef",
     verbose_name="profile picture",blank=True,max_length=1000)
-    firstname = models.CharField(max_length=100,blank=True)
-    lastname = models.CharField(max_length=100,blank=True)
+    firstname = models.CharField(max_length=100,blank=True,default="")
+    lastname = models.CharField(max_length=100,blank=True,default="")
     email = models.EmailField(blank=True)
     #phone_number = PhoneNumberField(blank=True)
-    address = models.CharField(max_length=255,blank=True,default="N/A")
+    address = models.CharField(max_length=255,blank=True)
 
     def __str__(self):
         return self.email
