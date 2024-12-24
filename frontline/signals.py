@@ -1,10 +1,10 @@
-from .models import CustomUser
+from .models import CustomUser as User
 from django.db.models.signals import post_save
 from . models import *
 from django.dispatch import receiver
 
 
-@receiver(post_save,sender=CustomUser)
+@receiver(post_save,sender=User)
 def CreateProfile(sender,created,instance,**kwargs):
     if created:
         UserProfile.objects.create(
@@ -16,12 +16,12 @@ def CreateProfile(sender,created,instance,**kwargs):
 
     else:
         updated = False
-        if instance.profile.firstname != instance.firstname:
-            instance.profile.firstname = instance.firstname
+        if instance.profile.firstname != instance.first_name:
+            instance.profile.firstname = instance.first_name
             updated = True
         
-        if instance.profile.lastname != instance.lastname:
-            instance.profile.lastname = instance.lastname
+        if instance.profile.lastname != instance.last_name:
+            instance.profile.lastname = instance.last_name
             updated = True
         
         if instance.profile.email != instance.email:

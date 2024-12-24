@@ -10,7 +10,7 @@ from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 
 def home(request):
-    return HttpResponse("Hi There! this is Home :")
+    return HttpResponse("Hi There! this is Home :)")
 
 
 @api_view(['POST'])
@@ -21,10 +21,10 @@ def register(request):
         serializer = RegistrationSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail":"User was created successfully"},status=status.HTTP_200_OK)
+            return Response({"detail":"User was created successfully"},{"status":status.HTTP_200_OK})
 
         else:
-            return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"errors":serializer.errors,"status":status.HTTP_400_BAD_REQUEST})
         
 
 @api_view(['POST'])

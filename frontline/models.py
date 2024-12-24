@@ -85,9 +85,9 @@ class UserProfile(models.Model):
     user = models.OneToOneField(CustomUser,on_delete=models.CASCADE,primary_key=True,verbose_name='User Profile',related_name='profile')
     profile_picture = models.URLField(default="https://my-bucket.s3.amazonaws.com/my-folder/my-image.jpg?AWSAccessKeyId=EXAMPLE&Expires=1672531199&Signature=abcdef",
     verbose_name="profile picture",blank=True,max_length=1000)
-    firstname = models.CharField(max_length=100,blank=True,default="")
-    lastname = models.CharField(max_length=100,blank=True,default="")
-    email = models.EmailField(blank=True)
+    firstname = models.CharField(max_length=100,blank=True)
+    lastname = models.CharField(max_length=100,blank=True)
+    email = models.EmailField(editable=False)
     address = models.CharField(max_length=255,blank=True)
 
     def __str__(self):
