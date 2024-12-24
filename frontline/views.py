@@ -157,7 +157,7 @@ def AnnouncementDetail(request,pk):
             return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view('GET')
+@api_view(['GET'])
 @permission_classes([AllowAny])
 def profiles(request):
     user_profiles = UserProfile.objects.all()
