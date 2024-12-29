@@ -5,6 +5,10 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password as vp
 from rest_framework.exceptions import ValidationError
+import re
+import secrets
+import string
+from django.contrib.auth.hashers import make_password
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -53,37 +57,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
-    
-
-class loginSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(max_length=254,write_only=True)
-    password = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = CustomUser
-        fields = ['email','password']
-    
-
-    def validate(self,data):
-        email = data['email']
-        password = data['password']
-
-        user = authenticate(email=email,password=password)
-
-        if user is not None:
-            refresh = RefreshToken.for_user(user)
-            data.pop('email',None)
-            data.pop('password',None)
-            data["refresh_token"] = str(refresh)
-            data["access_token"] = str(refresh.access_token)
-            data['role'] = user.role 
-            data['school'] = user.school_name 
-            data['user_id'] = user.id
-
-            return data 
-
-        else:
-            raise serializers.ValidationError("Invalid credentials provided")
         
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -135,13 +108,7 @@ class AnnouncementsSerializer(serializers.ModelSerializer):
         return value
     
     def create(self,validated_data):
-        announcement = Announcements(
-            title = validated_data['title'],
-            body = validated_data['body'],
-            audiences = validated_data['audiences'],
-            scheduled_for = validated_data['scheduled_for']
-        )
-        return announcement
+        return super().create(validated_data)
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -176,13 +143,119 @@ class EventSerializer(serializers.ModelSerializer):
         return value
     
     def create(self,validated_data):
-        event = Events(
-            name = validated_data['name'],
-            description = validated_data['description'],
-            event_tags = validated_data['event_tags'],
-            start_time = validated_data['start_time'],
-            end_time = validated_data['end_time'],
-            location = validated_data['location']
+        return super().create(validated_data)
+
+
+class CustomLoginLogicSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(max_length=254, write_only=True)
+    password = serializers.CharField(min_length=8, write_only=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ['email', 'password']
+
+    def validate(self, data):
+        email = data['email']
+        password = data['password']
+
+        user = authenticate(email=email, password=password)
+
+        if user is not None:
+
+            data.pop('email',None)
+            data.pop('password',None)
+            data['role'] = user.role 
+            data['school'] = user.school_name 
+            data['user_id'] = user.id
+
+            self.context['user'] = user  # Store user for potential use in the view
+
+            return data
+    
+        else:
+            raise serializers.ValidationError("Invalid credentials provided")
+        
+
+class SchoolProfileSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=255)
+    logo = serializers.URLField()
+    theme = serializers.CharField(min_length=7)
+    pricing = serializers.CharField(read_only=True)
+    subdomain_url = serializers.URLField(read_only=True)
+
+    class Meta:
+        model = SchoolProfile
+        fields = ['name','logo','theme','pricing','subdomain_url']
+
+
+    def validate_name(self,value):
+        if SchoolProfile.objects.filter(name=value).exists():
+            raise serializers.ValidationError(f"Sorry, {value} is not available")
+        return value
+    
+
+    def validate_theme(self, value):
+        """Ensure theme is a valid hex color."""
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', value):
+            raise serializers.ValidationError("Invalid theme color. Must be a valid hex color code.")
+        return value
+
+
+    def create(self,validated_data):
+        return super().create(validated_data)
+    
+
+class subclassesSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=100)
+    Grade = serializers.PrimaryKeyRelatedField(
+        queryset = StudentClasses.objects.all(),
+        allow_null = True,
+    )
+
+    def validate_name(self,value):
+        if SubClasses.objects.filter(name=value).exists():
+            return serializers.ValidationError("A subclass with the same name already exists")
+
+    class Meta:
+        model = SubClasses
+        fields = ['name','Grade']
+    
+    def create(self,validated_data):
+        return super().create(validated_data)
+    
+
+class AddStudentSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+
+    class Meta:
+        model = CustomUser
+        fields = ['first_name','last_name']
+
+    def create(self,validated_data):
+
+        unique_id = uuid.uuid4().hex[:6] # this generates a short unique id
+        username = f"user_{unique_id}"
+        password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+
+        while CustomUser.objects.filter(username=username).exists():
+            unique_id = uuid.uuid4().hex[:6]
+            username = f"user_{unique_id}"
+
+        user = CustomUser(
+        first_name = validated_data['first_name'],
+        last_name = validated_data['last_name'],
+        email = f'{username}@gmail.com',
+        role = "Student",
+        username = username
         )
-        event.save()
-        return event
+        user.set_password(password)
+        user.save()
+        return user
+
+    
+
+class StudentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Student
+        fields = '__all__'

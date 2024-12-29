@@ -23,8 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-f-^4t8^*m9g%ix%^=9^dzvi1goo&8^$#a)f#-a)nlmj!4a#)p-'
 
+MODE = 'TEST'
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+if MODE =='LIVE':
+    DEBUG = False
+else:
+    DEBUG = True
 
 ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and any other vercel services to connect to the backend and the backend to itself. But I have set it to the Frontend domain so that only the frontend would have access to the backend.
 
@@ -116,49 +121,94 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_LIFETIME": timedelta(minutes=5),
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 
-    "TOKEN_OBTAIN_SERIALIZER": "Global.api.MyTokenObtainPairSerializer",
+    "TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainPairSerializer",
     "TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSerializer",
     "TOKEN_VERIFY_SERIALIZER": "rest_framework_simplejwt.serializers.TokenVerifySerializer",
     "TOKEN_BLACKLIST_SERIALIZER": "rest_framework_simplejwt.serializers.TokenBlacklistSerializer",
     "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
+
+    'AUTH_COOKIE': 'access_token',  # Cookie name. Enables cookies if value is set.
+    'AUTH_COOKIE_REFRESH': 'refresh_token',  # Cookie name. Enables cookies if value is set.
+    'AUTH_COOKIE_DOMAIN': None,     # A string like "example.com", or None for standard domain cookie.
+    'AUTH_COOKIE_SECURE': False,    # Whether the auth cookies should be secure (https:// only).
+    'AUTH_COOKIE_HTTP_ONLY' : True, # Http only cookie flag.It's not fetch by javascript.
+    'AUTH_COOKIE_PATH': '/api/',        # The path of the auth cookie.
+    'AUTH_COOKIE_SAMESITE': 'Lax',  # Whether to set the flag restricting cookie leaks on cross-site requests. This can be 'Lax', 'Strict', or None to disable the flag.
 }
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    'PAGE_SIZE': 100,
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle', 
-        'rest_framework.throttling.UserRateThrottle' 
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
-        'user': '1000/day' # throttle rate for an AuthenticatedUser
-    },
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-]
-}
+if MODE =='LIVE':
+    REST_FRAMEWORK = {
+        'DEFAULT_AUTHENTICATION_CLASSES': (
+            #'rest_framework_simplejwt.authentication.JWTAuthentication',
+            'frontline.authenticate.CustomAuthentication',
+        ),
+        'DEFAULT_PERMISSION_CLASSES': [
+            'rest_framework.permissions.IsAuthenticated',
+        ],
+        'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+        'PAGE_SIZE': 100,
+        'DEFAULT_THROTTLE_CLASSES': [
+            'rest_framework.throttling.AnonRateThrottle', 
+            'rest_framework.throttling.UserRateThrottle' 
+        ],
+        'DEFAULT_THROTTLE_RATES': {
+            'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
+            'user': '1000/day' # throttle rate for an AuthenticatedUser
+        },
+        'DEFAULT_RENDERER_CLASSES': [
+            'rest_framework.renderers.JSONRenderer',
+    ]
+    }
+else:
+    REST_FRAMEWORK = {
+        'DEFAULT_AUTHENTICATION_CLASSES': (
+            #'rest_framework_simplejwt.authentication.JWTAuthentication',
+            'frontline.authenticate.CustomAuthentication',
+        ),
+        'DEFAULT_PERMISSION_CLASSES': [
+            'rest_framework.permissions.AllowAny',
+        ],
+        'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+        'PAGE_SIZE': 100,
+        'DEFAULT_THROTTLE_CLASSES': [
+            'rest_framework.throttling.AnonRateThrottle', 
+            'rest_framework.throttling.UserRateThrottle' 
+        ],
+        'DEFAULT_THROTTLE_RATES': {
+            'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
+            'user': '1000/day' # throttle rate for an AuthenticatedUser
+        },
+        'DEFAULT_RENDERER_CLASSES': [
+            'rest_framework.renderers.JSONRenderer',
+    ]
+    }
 
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
-        'HOST': 'ep-red-sunset-a4mtpla2-pooler.us-east-1.aws.neon.tech',  # Neon pooled endpoint
-        'USER': 'neondb_owner',                     # Neon database user
-        'NAME': 'neondb',                           # Neon database name
-        'PASSWORD': 'WbF3jvD2cOrV',                 # Neon database password
-        'PORT': '5432',     
+
+
+if MODE == 'LIVE':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
+            'HOST': 'ep-red-sunset-a4mtpla2-pooler.us-east-1.aws.neon.tech',  # Neon pooled endpoint
+            'USER': 'neondb_owner',                     # Neon database user
+            'NAME': 'neondb',                           # Neon database name
+            'PASSWORD': 'WbF3jvD2cOrV',                 # Neon database password
+            'PORT': '5432',     
+        }
     }
-}
+
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

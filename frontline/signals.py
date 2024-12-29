@@ -1,10 +1,12 @@
-from .models import CustomUser
+from .models import CustomUser as User 
 from django.db.models.signals import post_save
 from . models import *
 from django.dispatch import receiver
+import string
+import secrets
 
 
-@receiver(post_save, sender=CustomUser)
+@receiver(post_save, sender=User)
 def CreateProfile(sender,created,instance,**kwargs):
     if created:
         UserProfile.objects.create(
@@ -30,3 +32,41 @@ def CreateProfile(sender,created,instance,**kwargs):
 
         if updated:
             instance.profile.save()
+
+
+@receiver(post_save,sender=User)
+def CreateSchoolProfile(sender,created,instance,**kwargs):
+    if created:
+        if instance.role == "Admin":
+            SchoolProfile.objects.create(
+                user = instance
+            )
+
+
+@receiver(post_save,sender=User)
+def Creator(sender,created,instance,**kwargs):
+    if created:
+        if instance.role == "Parent":
+            Parents.objects.create(
+                user = instance
+            )
+        
+        if instance.role == "Student":
+            passkey = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+            Student.objects.create(
+                user = instance,
+                my_passkey = passkey
+            )
+        
+        if instance.role=="Teacher":
+            Staff.objects.create(
+                user=instance,
+            )
+            
+            Approvals.objects.create(
+                user=instance,
+                fullname = instance.staff.fullname,
+                email = instance.email,
+                approved = instance.approved
+            )
+            

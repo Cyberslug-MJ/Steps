@@ -4,7 +4,7 @@ from . forms import CustomUserForm
 from django.contrib.auth.admin import UserAdmin
 
 
-registry = [UserProfile,Events,Announcements]
+registry = [UserProfile,Events,Announcements,SchoolProfile,Parents,SubClasses,Staff,Student,StudentClasses,Attendance,Academic]
 admin.site.register(registry)
 
 class CustomUserAdmin(UserAdmin):
