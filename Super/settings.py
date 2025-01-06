@@ -34,7 +34,7 @@ ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and an
 INSTALLED_APPS = [
     "corsheaders",
     'django.contrib.admin',
-    #"debug_toolbar",
+    "debug_toolbar",
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -52,7 +52,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    #"debug_toolbar.middleware.DebugToolbarMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
