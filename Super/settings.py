@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-f-^4t8^*m9g%ix%^=9^dzvi1goo&8^$#a)f#-a)nlmj!4a#)p-'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and any other vercel services to connect to the backend and the backend to itself. But I have set it to the Frontend domain so that only the frontend would have access to the backend.
 
