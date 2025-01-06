@@ -1,6 +1,11 @@
+from functools import partial
+from http.client import responses
+import time
 from urllib import response
+from xmlrpc.client import ResponseError
 from django.http import HttpResponse
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination, LimitOffsetPagination
 from . serializers import *
 from rest_framework.decorators import api_view,permission_classes, throttle_classes, parser_classes
 from rest_framework import status
@@ -11,10 +16,23 @@ from django.conf import settings
 from django.middleware import csrf
 from rest_framework.parsers import MultiPartParser
 import openpyxl
+from rest_framework_simplejwt.views import TokenRefreshView
+from django.db import connection
+from rest_framework_simplejwt.exceptions import InvalidToken
+from . filters import *
 
 
 def home(request):
     return HttpResponse("Hi There! this is Home :)")
+
+
+def paginate_my_way(queryset,request,serializer):
+    paginator = PageNumberPagination()
+    paginator.page_size = 10
+    paginated_queryset = paginator.paginate_queryset(queryset.order_by('pk'),request)
+    paginator.page_size_query_param = 'size'
+    serializer = serializer(paginated_queryset,many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(['POST'])
@@ -44,33 +62,28 @@ def get_tokens_for_user(user):
 def login(request):
     serializer = CustomLoginLogicSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.context['user']
-        tokens = get_tokens_for_user(user)
-        response = Response({"detail":"Login successful","data":serializer.validated_data},status=status.HTTP_200_OK)
+        if serializer.context['authorization'] == 'Authorized':
+            user = serializer.context['user']
+            tokens = get_tokens_for_user(user)
+            response = Response({"data":serializer.validated_data,"access_token":tokens['access']},status=status.HTTP_200_OK)
 
-        response.set_cookie(
-            key=settings.SIMPLE_JWT['AUTH_COOKIE'],
-            value=tokens["access"],
-            max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-            httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-        )
+            response.set_cookie(
+                key=settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
+                value=tokens["refresh"],
+                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            )
 
-        response.set_cookie(
-            key=settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
-            value=tokens["refresh"],
-            max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-            httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-        )
+            # setting the csrf token cookie
+            csrf_token = csrf.get_token(request)
+            response.set_cookie('csrftoken', csrf_token, samesite='Lax')
 
-        # setting the csrf token cookie
-        csrf_token = csrf.get_token(request)
-        response.set_cookie('csrftoken', csrf_token, samesite='Lax')
-
-        return response
+            return response
+        
+        else:
+            return Response(status = status.HTTP_401_UNAUTHORIZED)
     
     else:
         return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
@@ -79,16 +92,45 @@ def login(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def logout(request):
-    response = Response({"detail":"logout successful"},status=status.HTTP_200_OK)
-    response.delete_cookie('access_token') # clear my jwt token 
-    response.delete_cookie('csrf_token') #clear the jwt token
+    refresh_token = request.COOKIES.get('refresh_token')
+
+    if refresh_token:
+        try:
+            refresh = RefreshToken(refresh_token)
+            refresh.blacklist()
+        except Exception as e:
+            return Response({"error":"There was an error invalidating the token:" + str(e)}, status = status.HTTP_400_BAD_REQUEST)
+        
+    response = Response(status = status.HTTP_200_OK)
+    response.delete_cookie("refresh_token")
     return response
+
+
+class CookieTokenRefreshView(TokenRefreshView):
+    def post(self,request):
+        refresh_token = request.COOKIES.get("refresh_token")
+        if not refresh_token:
+            return Response({"errors":"Refresh token not provided"}, status = status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            refresh = RefreshToken(refresh_token)
+            access_token = str(refresh.access_token)
+            data = {
+                "access_token":access_token,
+                "expiration_time":settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds()
+            }
+
+            return Response({"token_data":data},status = status.HTTP_200_OK)
+
+        except InvalidToken:
+            return Response({"errors":"Invalid Token"},status = status.HTTP_401_UNAUTHORIZED)
+
 
 @api_view(['GET','PUT','PATCH']) #PATCH is for testing purposes
 @throttle_classes([UserRateThrottle])
 def ProfileManager(request,pk):
     try:
-        user_profile = UserProfile.objects.get(user_id=pk)
+        user_profile = UserProfile.objects.get(user=pk)
     except UserProfile.DoesNotExist:
         return Response({"detail":"Profile does not exist"},status=status.HTTP_404_NOT_FOUND)
     
@@ -101,22 +143,24 @@ def ProfileManager(request,pk):
     serializer = UserProfileSerializer(user_profile,data=request.data,partial=partial)
     if serializer.is_valid():
         serializer.save()
-        return Response({"detail":"Profile updated","data":serializer.data},status=status.HTTP_200_OK)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
     else:
-        return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
     
 
 @api_view(['GET','POST'])
 @throttle_classes([UserRateThrottle])
-def EventScheduler(request):
+def EventList(request):
     if request.method =="GET":
-        events = Events.objects.all()
+        filterset = EventFilter(request.GET,queryset=Events.objects.all())
+        if not filterset.is_valid():
+            return Response({"errors":filterset.errors},status = status.HTTP_400_BAD_REQUEST)
+        events = filterset.qs
         count = events.count()
         if count == 0:
-            return Response({"detail":"No events found"},status=status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         else:
-            serializer = EventSerializer(events,many=True)
-            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+            return paginate_my_way(events,request,EventSerializer)
 
     if request.method =='POST':
         serializer = EventSerializer(data = request.data)
@@ -124,7 +168,7 @@ def EventScheduler(request):
             serializer.save()
             return Response({"data":serializer.data},status=status.HTTP_201_CREATED)
         else:
-            return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET','PUT','PATCH','DELETE'])
@@ -133,7 +177,7 @@ def EventDetail(request,pk):
     try:
         event = Events.objects.get(id=pk)
     except Events.DoesNotExist:
-        return Response({"detail":"Event not found"},status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_404_NOT_FOUND)
     
     if request.method =='GET':
         serializer = EventSerializer(event)
@@ -141,7 +185,7 @@ def EventDetail(request,pk):
     
     if request.method =='DELETE':
         event.delete()
-        return Response({"detail":"Event was deleted successfully"},status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
     if request.method in ['PATCH','PUT']:
         partial = request.method == 'PATCH' # will validate to True if it is 
@@ -151,32 +195,44 @@ def EventDetail(request,pk):
             return Response({"data":serializer.data},status=status.HTTP_200_OK)
         
         else:
-            return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
         
+
 
 @api_view(['GET','POST'])
 @throttle_classes([UserRateThrottle])
-def Announcement(request):
+def AnnouncementList(request):
+
+    if request.user.is_authenticated:
+        user = {"role":request.user.role}
+    else:
+        user = {"role":"Students"}
     
     if request.method =='GET':
-        announcements = Announcements.objects.all()
+        if user.get('role') == "Admin":
+            filterset = AnnouncementFilter(request.GET,queryset=Announcements.objects.all())
+        else:
+            filterset = AnnouncementFilter(request.GET,queryset=Announcements.objects.filter(audiences=user.get('role')))
+        if not filterset.is_valid():
+            return Response({"errors":filterset.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+        announcements = filterset.qs
         count = announcements.count()
         if count == 0:
-            return Response({"detail":"No announcements found"},status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         else:
-            serializer = AnnouncementsSerializer(announcements,many=True)
-            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+            return paginate_my_way(announcements,request,AnnouncementsSerializer)
     
     if request.method == 'POST':
+        if user.role != "Admin":
+            return Response(status = status.HTTP_401_UNAUTHORIZED)
+
         serializer = AnnouncementsSerializer(data = request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail":"Announcement added","data":serializer.data},status=status.HTTP_201_CREATED)
+            return Response(status=status.HTTP_201_CREATED)
         else:
-            return Response({
-                "data":serializer.data,
-                "errors":serializer.errors
-            },status=status.HTTP_400_BAD_REQUEST)
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET','PUT','PATCH','DELETE'])
@@ -185,7 +241,7 @@ def AnnouncementDetail(request,pk):
     try:
         announcement = Announcements.objects.get(id=pk)
     except Announcements.DoesNotExist:
-        return Response({"detail":"Announcement not found"},status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_404_NOT_FOUND)
     
     if request.method =='GET':
         serializer = AnnouncementsSerializer(announcement)
@@ -196,10 +252,14 @@ def AnnouncementDetail(request,pk):
         serializer = AnnouncementsSerializer(announcement,data=request.data,partial=partial)
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail":"Announcement Updated","data":serializer.data},status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_200_OK)
         
         else:
-            return Response({"data":serializer.data,"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method =='DELETE':
+        announcement.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
@@ -217,7 +277,7 @@ def profiles(request):
 @permission_classes([AllowAny])
 def SchoolProfileManager(request,pk):
     try:
-        school_profile = SchoolProfile.objects.get(user_id=pk)
+        school_profile = SchoolProfile.objects.get(user=pk)
     except SchoolProfile.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
     
@@ -236,61 +296,95 @@ def SchoolProfileManager(request,pk):
     
 
 @api_view(['GET','POST'])
-def SubClasses_me(request):
+def SubClassesList(request):
     if request.method =='GET':
         my_subclasses = SubClasses.objects.all()
         serializer = subclassesSerializer(my_subclasses,many=True)
         if my_subclasses.count() == 0:
-            return Response({"detail":"No subclasses found"},status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         else:
-            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+            return paginate_my_way(my_subclasses,request,subclassesSerializer)
     
     if request.method == 'POST':
         serializer = subclassesSerializer(data = request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail":"Subclass was successfully created"},status=status.HTTP_201_CREATED)
+            return Response(status=status.HTTP_201_CREATED)
         else:
             return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
         
 
-@api_view(['POST','GET'])
-def StudentCreator(request):
-    if request.method =='POST':
-        serializer = AddStudentSerializer(data = request.data)
+@api_view(['GET','PUT','PATCH','DELETE'])
+def SubclassesDetail(request,pk):
+    try:
+        subclass = SubClasses.objects.get(id=pk)
+    except SubClasses.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method=='GET':
+        serializer = subclassesSerializer(subclass)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method in ['PATCH','PUT']:
+        partial = request.method == 'PATCH' 
+        serializer = subclassesSerializer(subclass,data=request.data,partial=partial)
         if serializer.is_valid():
             serializer.save()
-            return Response({"data":serializer.data},status=status.HTTP_201_CREATED)
-        else:
-            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
-    
-    if request.method =='GET':
-        students = Student.objects.all()
-        count = students.count()
-        if request.method =='GET':
-            if count == 0:
-                return Response({"detail":"No students found"},status=status.HTTP_404_NOT_FOUND)
-            serializer = StudentSerializer(students,many=True)
             return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        else:
+            return Response({"error":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method == 'DELETE':
+        subclass.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+        
+
+@api_view(['GET'])
+def StudentList(request):
+    paginator = LimitOffsetPagination()
+    paginator.max_limit = 15 
+    paginator.default_limit = 3
+    if request.method =='GET':
+        filterset = StudentFilter(request.GET,queryset=Student.objects.all())
+        if not filterset.is_valid():
+            return Response({"errors":filterset.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+        students = filterset.qs
+        count = students.count()
+        if count == 0:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            queryset = paginator.paginate_queryset(students,request)
+            serializer = StudentSerializer(queryset,many=True)
+            return paginator.get_paginated_response(serializer.data)
+
     
 
 @api_view(['GET','PUT','PATCH','DELETE'])
 def StudentDetail(request,pk):
     try:
-        student = Student.objects.get(user_id=pk)
+        student = Student.objects.get(user=pk)
     except Student.DoesNotExist:
-        return Response({"detail":"Student not found"},status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_404_NOT_FOUND)
     
     if request.method =='GET':
         serializer = StudentSerializer(student)
         return Response({"data":serializer.data},status=status.HTTP_200_OK)
     
     if request.method =='DELETE':
-        student.delete()
-        return Response({"detail":"Student was deleted successfully"},status=status.HTTP_204_NO_CONTENT)
+        student_name = student.firstname
+        try:
+            student_name_req = request.data['name']
+        except Exception as e:
+            return Response({"error":f"{e} key must have a value"},status=status.HTTP_400_BAD_REQUEST)
+        if student_name == student_name_req:
+            student.user.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            return Response(status = status.HTTP_401_UNAUTHORIZED)
     
     if request.method in ['PATCH','PUT']:
-        partial = request.method == 'PATCH' # will validate to True if it is 
+        partial = request.method == 'PATCH'
         serializer = StudentSerializer(student,data=request.data,partial=partial)
         if serializer.is_valid():
             serializer.save()
@@ -369,3 +463,442 @@ def ImportStudents(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@api_view(['GET','POST'])
+def ClassesList(request):
+    filterset = ClassesFilter(request.GET,queryset=StudentClasses.objects.all())
+    if not filterset.is_valid():
+        return Response({"errors":filterset.errors},status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method =='GET':
+        classes = filterset.qs
+        count = classes.count()
+        if count == 0:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            return paginate_my_way(classes,request,StudentClassSerializer)
+        
+    if request.method =='POST':
+        serializer = StudentClassSerializer(data = request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(status=status.HTTP_201_CREATED)
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['GET','PUT','DELETE'])
+def ClassesDetail(request,pk):
+    try:
+        classes = StudentClasses.objects.get(id=pk)
+    except StudentClasses.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = StudentClassSerializer(classes)
+        return Response(serializer.data,status=status.HTTP_200_OK)
+    
+    if request.method == 'PUT':
+        serializer = StudentClassSerializer(classes,data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_200_OK)
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method =='DELETE':
+        classes.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+
+@api_view(['GET','POST'])
+def AcademicList(request):
+    filterset = AcademicFilter(request.GET,queryset=Academic.objects.all())
+    if not filterset.is_valid():
+        return Response({"errors":filterset.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+    academics = filterset.qs
+    if request.method == 'GET':
+        count = academics.count()
+        if count != 0:
+            return paginate_my_way(academics,request,AcademicSerializer)
+        else:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    if request.method == 'POST':
+        serializer = AcademicSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_201_CREATED)
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['GET','PUT','PATCH','DELETE'])
+def AcademicDetail(request,pk):
+    try:
+        academic = Academic.objects.get(id=pk)
+    except Academic.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method =='GET':
+        serializer = AcademicSerializer(academic)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method =='DELETE':
+        academic.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    if request.method in ['PATCH','PUT']:
+        partial = request.method == 'PATCH'
+        serializer = AcademicSerializer(academic,data=request.data,partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET','POST'])
+def SubjectsList(request):
+    filterset = SubjectFilter(request.GET,queryset=Subjects.objects.all())
+    subjects = filterset.qs
+    count = subjects.count()
+    
+    if request.method == 'GET':
+        if count == 0:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            return paginate_my_way(subjects,request,SubjectSerializer)
+    
+    if request.method == 'POST':
+        serializer = SubjectSerializer(data = request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(status=status.HTTP_201_CREATED)
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['GET','PUT','PATCH','DELETE'])
+def SubjectDetail(request,pk):
+    try:
+        subject = Subjects.objects.get(id=pk)
+    except Subjects.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = SubjectSerializer(subject)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method == 'DELETE':
+        subject.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    if request.method in ['PATCH','PUT']:
+        partial = request.method == 'PATCH'
+        serializer = SubjectSerializer(subject,data=request.data,partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['GET'])
+def StaffList(request):
+    paginator = LimitOffsetPagination()
+    paginator.max_limit = 15 
+    paginator.default_limit = 3
+    filterset = StaffFilter(request.GET,queryset=Staff.objects.all())
+    if not filterset.is_valid():
+        return Response({"errors":filterset.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+    staff = filterset.qs
+    count = staff.count()
+    if count == 0:
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    elif request.method =='GET':
+        queryset = paginator.paginate_queryset(staff,request)
+        serializer = StaffSerializer(queryset,many=True)
+        return paginator.get_paginated_response(serializer.data)
+        
+
+@api_view(['GET','DELETE'])
+def StaffDetail(request,pk):
+    try:
+        staff = Staff.objects.get(user=pk)
+    except Staff.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = StaffSerializer(staff)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method == 'DELETE':
+        try:
+            firstname = request.data['name']
+        except Exception as e:
+            return Response({"detail":f"{e}"},status=status.HTTP_400_BAD_REQUEST)
+        
+        if firstname == staff.firstname:
+            staff.user.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+    
+
+@api_view(['POST'])
+def UserList(request):
+    serializer = RoleBasedSerializer(data=request.data,context={"request":request})
+    if serializer.is_valid():
+        serializer.save()
+        return Response(status = status.HTTP_201_CREATED)
+    else:
+        return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+    
+
+@api_view(['GET','PUT','PATCH','DELETE'])
+def UserDetail(request,pk):
+    try:
+        user = CustomUser.objects.get(id=pk)
+    except CustomUser.DoesNotExist:
+        return Response( status = status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = UserSerializer(user)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method == 'DELETE':
+        fullname = user.get_full_name()
+        try:
+            data = request.data['name']
+        except Exception as e:
+            return Response({"detail":f"{e}"},status=status.HTTP_400_BAD_REQUEST)
+        
+        if fullname == data:
+            user.delete()
+            return Response(status = status.HTTP_204_NO_CONTENT)
+        
+    if request.method in ['PATCH','PUT']:
+        partial = request.method == ['PATCH']
+        serializer = UserSerializer(user,data=request.data,partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['POST','PUT'])
+def add_ward(request,pk):
+    try:
+        student = Student.objects.get(user=pk)
+    except Student.DoesNotExist:
+        return Response(status = status.HTTP_404_NOT_FOUND)
+    Parent = Parents.objects.get(user=4) 
+
+    if request.method == 'POST':
+        # for the purpose of testing switch out request.user.id
+        passkey = request.data['passkey']
+        if student.my_passkey == passkey:
+            Parent.wards.add(student)
+            return Response(status = status.HTTP_200_OK)
+        else:
+            return Response(status = status.HTTP_400_BAD_REQUEST)
+        
+    if request.method =='PUT':
+        Parent.wards.remove(student)
+        return Response(status = status.HTTP_200_OK)
+
+        
+
+@api_view(['GET'])
+def ParentList(request):
+    paginator = LimitOffsetPagination()
+    paginator.max_limit = 15 
+    paginator.default_limit = 3
+    if request.method =='GET':
+        filterset = ParentFilter(request.GET,queryset=Parents.objects.all())
+        if not filterset.is_valid():
+            return Response({"errors":filterset.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+        parents = filterset.qs
+        count = parents.count()
+        if count != 0:
+            queryset = paginator.paginate_queryset(parents,request)
+            serializer = ParentSerializer(queryset,many=True)
+            return paginator.get_paginated_response(serializer.data)
+        else:
+            return Response(status = status.HTTP_204_NO_CONTENT)
+        
+
+@api_view(['GET','PUT','PATCH','DELETE'])
+def ParentDetail(request,pk):
+    try:
+        parent = Parents.objects.get(user=pk)
+    except Parents.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = ParentSerializer(parent)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method == 'DELETE':
+        parent.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    if request.method in ['PATCH','PUT']:
+        partial = request.method == 'PATCH'
+        serializer = ParentSerializer(parent,data=request.data,partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['GET','POST'])
+def RecordList(request):
+    #user = request.user
+    user = {"role":"Admin"}
+    paginator = LimitOffsetPagination()
+    paginator.max_limit = 15 
+    paginator.default_limit = 3
+
+
+    if user.get('role') != "Parent":
+        filterset = RecordFilter(request.GET, queryset=Assessment_records.objects.all())
+        if not filterset.is_valid():
+            return Response({"errors": filterset.errors}, status=status.HTTP_400_BAD_REQUEST)
+        records = filterset.qs
+
+
+    else:
+        try:
+            parent = Parents.objects.get(user=2)
+        except Parents.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+
+        student_ids = parent.wards.values_list('user', flat=True)
+        filterset = RecordFilter(request.GET, queryset=Assessment_records.objects.filter(student__in=student_ids))
+        if not filterset.is_valid():
+            return Response({"errors": filterset.errors}, status=status.HTTP_400_BAD_REQUEST)
+        records = filterset.qs
+
+
+    if request.method == 'GET':
+        count = records.count()
+        if count == 0:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        
+        queryset = paginator.paginate_queryset(records,request)
+        serializer = RecordSerializer(queryset,many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+    if request.method == 'POST':
+        serializer = RecordSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        
+    
+@api_view(['GET','PUT','PATCH','DELETE'])
+def RecordDetail(request,pk):
+    try:
+        record = Assessment_records.objects.get(id=pk)
+    except Assessment_records.DoesNotExist:
+        return Response(status = status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = RecordSerializer(record)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+    
+    if request.method == 'DELETE':
+        record.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    if request.method in ['PATCH','PUT']:
+        partial = request.method == 'PATCH'
+        serializer = RecordSerializer(record,data=request.data,partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['POST'])
+def ChangeMail(request,pk):
+    pass
+
+
+@api_view(['GET'])
+def ApprovalsList(request):
+    if request.method == 'GET':
+        filterset = ApprovalsFilter(request.GET,queryset=Approvals.objects.all())
+        approvals = filterset.qs
+        count = approvals.count()
+        if count == 0:
+            return Response(status = status.HTTP_204_NO_CONTENT)
+        else:
+            return paginate_my_way(approvals,request,ApprovalsSerializer)
+        
+
+@api_view(['GET','PUT','PATCH','DELETE'])
+def ApprovalsDetail(request,pk):
+    try:
+        approval = Approvals.objects.get(id=pk)
+    except Approvals.DoesNotExist:
+        return Response(status = status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = ApprovalsSerializer(approval)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK) 
+    
+    if request.method == 'DELETE':
+        approval.delete()
+        return Response(status = status.HTTP_204_NO_CONTENT)
+    
+    if request.method in ['PUT','PATCH']:
+        partial = request.method == 'PATCH'
+        serializer = ApprovalsSerializer(approval,data=request.data,partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+        else:
+            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        
+
+@api_view(['GET'])
+def SchoolDetail(request):
+    schema_name = connection.schema_name # this gets the schema name
+    subdomain_format = F"https://www.{schema_name}.com"
+    try:
+        school_profile = SchoolProfile.objects.get(subdomain_url=subdomain_format)
+    except SchoolProfile.DoesNotExist:
+        return Response(status = status.HTTP_404_NOT_FOUND)
+    
+    serializer = SchoolProfileSerializer(school_profile)
+    return Response(
+        {"data":serializer.data},
+        status = status.HTTP_200_OK
+    )
+
+
+@api_view(['GET','POST'])
+def TransactionsList(request):
+    pass
+
+
+@api_view(['GET'])
+def TransactionDetail(request,pk):
+    pass 

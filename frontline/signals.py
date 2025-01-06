@@ -63,10 +63,12 @@ def Creator(sender,created,instance,**kwargs):
                 user=instance,
             )
             
-            Approvals.objects.create(
-                user=instance,
-                fullname = instance.staff.fullname,
-                email = instance.email,
-                approved = instance.approved
-            )
+            if instance.approved == False:
+                Approvals.objects.create(
+                    user=instance,
+                    firstname = instance.staff.firstname,
+                    lastname = instance.staff.lastname,
+                    email = instance.email,
+                    approved = instance.approved
+                )
             

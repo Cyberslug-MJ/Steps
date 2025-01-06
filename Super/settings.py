@@ -23,13 +23,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-f-^4t8^*m9g%ix%^=9^dzvi1goo&8^$#a)f#-a)nlmj!4a#)p-'
 
-MODE = 'LIVE'
-
 # SECURITY WARNING: don't run with debug turned on in production!
-if MODE =='LIVE':
-    DEBUG = False
-else:
-    DEBUG = True
+DEBUG = True
 
 ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and any other vercel services to connect to the backend and the backend to itself. But I have set it to the Frontend domain so that only the frontend would have access to the backend.
 
@@ -39,6 +34,7 @@ ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and an
 INSTALLED_APPS = [
     "corsheaders",
     'django.contrib.admin',
+    "debug_toolbar",
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -48,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -55,6 +52,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -65,6 +63,8 @@ ROOT_URLCONF = 'Super.urls'
 AUTH_USER_MODEL = 'frontline.CustomUser'
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_CREDENTIALS = True # allows cookies to be included in cross-site requests.
 
 
 CORS_URLS_REGEX = r"^/api/.*$"
@@ -137,78 +137,53 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_SAMESITE': 'Lax',  # Whether to set the flag restricting cookie leaks on cross-site requests. This can be 'Lax', 'Strict', or None to disable the flag.
 }
 
-if MODE =='LIVE':
-    REST_FRAMEWORK = {
-        'DEFAULT_AUTHENTICATION_CLASSES': (
-            #'rest_framework_simplejwt.authentication.JWTAuthentication',
-            'frontline.authenticate.CustomAuthentication',
-        ),
-        'DEFAULT_PERMISSION_CLASSES': [
-            'rest_framework.permissions.IsAuthenticated',
-        ],
-        'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-        'PAGE_SIZE': 100,
-        'DEFAULT_THROTTLE_CLASSES': [
-            'rest_framework.throttling.AnonRateThrottle', 
-            'rest_framework.throttling.UserRateThrottle' 
-        ],
-        'DEFAULT_THROTTLE_RATES': {
-            'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
-            'user': '1000/day' # throttle rate for an AuthenticatedUser
-        },
-        'DEFAULT_RENDERER_CLASSES': [
-            'rest_framework.renderers.JSONRenderer',
-    ]
-    }
-else:
-    REST_FRAMEWORK = {
-        'DEFAULT_AUTHENTICATION_CLASSES': (
-            #'rest_framework_simplejwt.authentication.JWTAuthentication',
-            'frontline.authenticate.CustomAuthentication',
-        ),
-        'DEFAULT_PERMISSION_CLASSES': [
-            'rest_framework.permissions.AllowAny',
-        ],
-        'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-        'PAGE_SIZE': 100,
-        'DEFAULT_THROTTLE_CLASSES': [
-            'rest_framework.throttling.AnonRateThrottle', 
-            'rest_framework.throttling.UserRateThrottle' 
-        ],
-        'DEFAULT_THROTTLE_RATES': {
-            'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
-            'user': '1000/day' # throttle rate for an AuthenticatedUser
-        },
-        'DEFAULT_RENDERER_CLASSES': [
-            'rest_framework.renderers.JSONRenderer',
-    ]
-    }
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'frontline.authenticate.CookieAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        #'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 2,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle', 
+        'rest_framework.throttling.UserRateThrottle' 
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
+        'user': '1000/day' # throttle rate for an AuthenticatedUser
+    },
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+}
 
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-
-if MODE == 'LIVE':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
-            'HOST': 'ep-red-sunset-a4mtpla2-pooler.us-east-1.aws.neon.tech',  # Neon pooled endpoint
-            'USER': 'neondb_owner',                     # Neon database user
-            'NAME': 'neondb',                           # Neon database name
-            'PASSWORD': 'WbF3jvD2cOrV',                 # Neon database password
-            'PORT': '5432',     
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
+        'HOST': 'ep-orange-math-a526glpg-pooler.us-east-2.aws.neon.tech',  # Neon pooled endpoint
+        'USER': 'neondb_owner',                     # Neon database user
+        'NAME': 'neondb',                           # Neon database name
+        'PASSWORD': 'nlMo8qs6JzUg',                 # Neon database password
+        'PORT': '5432',     
     }
+}
 
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+"""
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-
+}
+"""
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -246,7 +221,13 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Default primary key field type
+# Default primary key field type 
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+INTERNAL_IPS = [
+    # ...
+    "127.0.0.1",
+    # ...
+]

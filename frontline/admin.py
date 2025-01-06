@@ -4,7 +4,7 @@ from . forms import CustomUserForm
 from django.contrib.auth.admin import UserAdmin
 
 
-registry = [UserProfile,Events,Announcements,SchoolProfile,Parents,SubClasses,Staff,Student,StudentClasses,Attendance,Academic]
+registry = [UserProfile,Events,Announcements,SchoolProfile,Parents,SubClasses,Staff,Student,StudentClasses,Attendance,Academic,Subjects,Assessment_records,Approvals]
 admin.site.register(registry)
 
 class CustomUserAdmin(UserAdmin):
@@ -12,7 +12,7 @@ class CustomUserAdmin(UserAdmin):
     readonly_fields = ('date_joined', 'last_login')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        ('Personal info', {'fields': ('first_name', 'last_name', 'email')}),
+        ('Personal info', {'fields': ('first_name', 'last_name','email')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
         ('Roles',{'fields':('role',)}),
