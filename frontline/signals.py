@@ -71,4 +71,25 @@ def Creator(sender,created,instance,**kwargs):
                     email = instance.email,
                     approved = instance.approved
                 )
-            
+    
+
+    else:
+
+        if instance.role == "Student":
+            instance.student.firstname = instance.first_name
+            instance.student.lastname = instance.last_name 
+            instance.student.student_class = instance.student.student_class
+            instance.student.save()
+
+
+        if instance.role == "Parent":
+            instance.parent.firstname = instance.first_name 
+            instance.parent.lastname = instance.last_name
+            instance.parent.wards.set(instance.parent.wards.all()) # add new wards or just update the old ones
+            instance.parent.save()
+
+
+        if instance.role == "Teacher":
+            instance.staff.firstname = instance.first_name 
+            instance.staff.lastname = instance.last_name
+            instance.staff.save()

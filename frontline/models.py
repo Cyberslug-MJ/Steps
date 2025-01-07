@@ -395,7 +395,7 @@ class Assessment_records(models.Model):
         self.total_score = self.class_score + self.exams_score
         super(Assessment_records, self).save(*args, **kwargs)
 
-"""
+
 class MailChange(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='mail_change_history')
   old_email = models.EmailField(max_length=255)
@@ -405,8 +405,8 @@ class MailChange(models.Model):
   last_changed = models.DateField(auto_now=True)
 
   def __str__(self):
-      return self.
-"""
+      return self.user.get_full_name()
+
 
 
 class Transactions(models.Model):

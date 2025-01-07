@@ -39,6 +39,7 @@ urlpatterns = [
     path('api/records/<int:pk>/',views.RecordDetail,name='record-detail'),
     path('api/transactions',views.TransactionsList,name='transactions-list'),
     path('api/transactions/<int:pk>/',views.TransactionDetail,name='transactions-detail'),
+    path('api/verify-mail',views.VerifyMail,name='verify-mail'),
     path('api/import-file',views.ImportExport,name='import-file'),
     path('api/import-students',views.ImportStudents,name='import-students'),
 ]

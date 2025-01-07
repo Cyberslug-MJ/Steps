@@ -149,11 +149,13 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 2,
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle', 
-        'rest_framework.throttling.UserRateThrottle' 
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle' 
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/day', # this specifies the number of requests an AnonymousUser can make
-        'user': '1000/day' # throttle rate for an AuthenticatedUser
+        'user': '1000/day', # throttle rate for an AuthenticatedUser
+        'change_mail': '1/week'
     },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

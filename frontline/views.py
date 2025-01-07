@@ -11,7 +11,7 @@ from rest_framework.decorators import api_view,permission_classes, throttle_clas
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from . models import *
-from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle , ScopedRateThrottle
 from django.conf import settings 
 from django.middleware import csrf
 from rest_framework.parsers import MultiPartParser
@@ -301,7 +301,7 @@ def SubClassesList(request):
         my_subclasses = SubClasses.objects.all()
         serializer = subclassesSerializer(my_subclasses,many=True)
         if my_subclasses.count() == 0:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         else:
             return paginate_my_way(my_subclasses,request,subclassesSerializer)
     
@@ -667,30 +667,34 @@ def UserDetail(request,pk):
     except CustomUser.DoesNotExist:
         return Response( status = status.HTTP_404_NOT_FOUND)
     
-    if request.method == 'GET':
-        serializer = UserSerializer(user)
-        return Response({"data":serializer.data},status=status.HTTP_200_OK)
-    
-    if request.method == 'DELETE':
-        fullname = user.get_full_name()
-        try:
-            data = request.data['name']
-        except Exception as e:
-            return Response({"detail":f"{e}"},status=status.HTTP_400_BAD_REQUEST)
-        
-        if fullname == data:
-            user.delete()
-            return Response(status = status.HTTP_204_NO_CONTENT)
-        
-    if request.method in ['PATCH','PUT']:
-        partial = request.method == ['PATCH']
-        serializer = UserSerializer(user,data=request.data,partial=partial)
-        if serializer.is_valid():
-            serializer.save()
+    if user.approved and user.verified:
+        if request.method == 'GET':
+            serializer = UserSerializer(user)
             return Response({"data":serializer.data},status=status.HTTP_200_OK)
         
-        else:
-            return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+        if request.method == 'DELETE':
+            fullname = user.get_full_name()
+            try:
+                data = request.data['name']
+            except Exception as e:
+                return Response({"detail":f"{e}"},status=status.HTTP_400_BAD_REQUEST)
+            
+            if fullname == data:
+                user.delete()
+                return Response(status = status.HTTP_204_NO_CONTENT)
+            
+        if request.method in ['PATCH','PUT']:
+            partial = request.method == ['PATCH']
+            serializer = UserSerializer(user,data=request.data,partial=partial)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"data":serializer.data},status=status.HTTP_200_OK)
+            
+            else:
+                return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+            
+    else:
+        return Response(status = status.HTTP_403_FORBIDDEN)
         
 
 @api_view(['POST','PUT'])
@@ -837,8 +841,39 @@ def RecordDetail(request,pk):
         
 
 @api_view(['POST'])
-def ChangeMail(request,pk):
-    pass
+@throttle_classes([ScopedRateThrottle])
+def ChangeMail(request):
+    ChangeMail.throttle_scope = 'change_mail'
+    
+    value = request.data.get('id')
+    email = request.data.get('email')
+    otp = request.data.get('otp')
+    if not value or not email:
+        return Response(status = status.HTTP_400_BAD_REQUEST)
+    
+    if not otp:
+        return Response(status= status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = CustomUser.objects.get(id=value)
+    except CustomUser.DoesNotExist:
+        return Response(status = status.HTTP_404_NOT_FOUND)
+    
+    if CustomUser.objects.filter(email=email).exists():
+        return Response(status=status.HTTP_409_CONFLICT)
+
+    old_email = user.email
+    user.email = email
+    user.save()
+    mail = MailChange()
+    mail.user = user
+    mail.is_verified = True
+    mail.verification_token = otp
+    mail.old_email = old_email
+    mail.new_email = email
+    mail.save()
+    return Response(status=status.HTTP_200_OK)
+
 
 
 @api_view(['GET'])
@@ -865,14 +900,16 @@ def ApprovalsDetail(request,pk):
         return Response({"data":serializer.data},status=status.HTTP_200_OK) 
     
     if request.method == 'DELETE':
-        approval.delete()
+        approval.user.delete()
         return Response(status = status.HTTP_204_NO_CONTENT)
     
-    if request.method in ['PUT','PATCH']:
-        partial = request.method == 'PATCH'
-        serializer = ApprovalsSerializer(approval,data=request.data,partial=partial)
+    if request.method in ['PUT']:
+        serializer = ApprovalsSerializer(approval,data=request.data)
         if serializer.is_valid():
             serializer.save()
+            user = CustomUser.objects.get(id=approval.user)
+            user.approved = True
+            user.save()
             return Response({"data":serializer.data},status=status.HTTP_200_OK)
         else:
             return Response({"errors":serializer.errors},status=status.HTTP_400_BAD_REQUEST)
@@ -902,3 +939,21 @@ def TransactionsList(request):
 @api_view(['GET'])
 def TransactionDetail(request,pk):
     pass 
+
+
+@api_view(['POST'])
+def VerifyMail(request):
+    if request.method == 'POST':
+        value = request.data.get('id')
+        if not value:
+            return Response(status = status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(id=value)
+        except CustomUser.DoesNotExist:
+            return Response(status = status.HTTP_404_NOT_FOUND)
+        
+        if user:
+            user.verfied = True
+            user.save()
+            return Response( status = status.HTTP_200_OK)

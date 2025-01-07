@@ -291,7 +291,7 @@ class StudentClassSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = StudentClasses
-        fields = ['id','name','created','modified']
+        fields = ['id','name','order','created','modified']
 
 
 class AcademicSerializer(serializers.ModelSerializer):
@@ -353,7 +353,7 @@ class StaffSerializer(serializers.ModelSerializer):
     last_modified = serializers.DateTimeField(read_only=True)
     class Meta:
         model = Staff
-        fields = '__all__'
+        exclude = ['fullname']
 
 
 class RoleBasedSerializer(serializers.ModelSerializer):
@@ -383,11 +383,6 @@ class RoleBasedSerializer(serializers.ModelSerializer):
         return value
     
     def create(self,validated_data):
-        
-        if validated_data['role'] == "Teacher":
-            approval_status = True
-        else:
-            approval_status = False
 
         request = self.context['request']
         if request.user.is_anonymous:
@@ -411,7 +406,7 @@ class RoleBasedSerializer(serializers.ModelSerializer):
         email = validated_data['email'],
         role = validated_data['role'],
         username = username,
-        approved = approval_status,
+        approved = True,
         school_name = school
         )
         user.set_password(validated_data['password'])
@@ -435,7 +430,7 @@ class ParentSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = Parents
-        fields = '__all__'
+        exclude = ['fullname']
 
 
 class RecordSerializer(serializers.ModelSerializer):
