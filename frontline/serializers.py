@@ -2,6 +2,7 @@ from email.policy import default
 import uuid
 from rest_framework import serializers
 from .models import *
+from backline.models import *
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password as vp
@@ -459,3 +460,30 @@ class ApprovalsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Approvals
         fields = ['id','firstname','lastname','email','approved','added','modified']
+
+
+
+class TenantCreationSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=255)
+
+    class Meta:
+        model = Tenant
+        fields = ['name']
+
+    def validate_tenant_name(self,value):
+
+        subdomain = slugify(value).replace(" ","-").lower()
+
+        if Tenant.objects.filter(schema_name=subdomain).exists():
+            raise serializers.ValidationError("Name is not available")
+        
+        return value
+    
+    def create(self, validated_data):
+        name = validated_data['name']
+        subdomain = slugify(name).replace(" ","-").lower()
+        tenant = Tenant(schema_name=subdomain,name=name)
+        tenant.save()
+        domain = Domain(domain=f"{subdomain}.{settings.DOMAIN}",tenant=tenant,is_primary=True)
+        domain.save()
+        return tenant

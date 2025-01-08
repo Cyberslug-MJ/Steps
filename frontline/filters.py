@@ -2,7 +2,7 @@ from dataclasses import field
 from sched import Event
 import django
 import django_filters
-from .models import *
+from backline.models import *
 from django_filters import FilterSet
 
 

@@ -31,10 +31,11 @@ ALLOWED_HOSTS = ['*'] #ALLOWED_HOSTS = ['.vercel.app'] allows the backend and an
 
 # Application definition
 
-INSTALLED_APPS = [
+SHARED_APPS = [
     "corsheaders",
     'django.contrib.admin',
     "debug_toolbar",
+    'django_tenants',    
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -47,8 +48,16 @@ INSTALLED_APPS = [
     'django_filters',
 ]
 
+TENANT_APPS = [
+    'django.contrib.admin',
+    'backline.apps.BacklineConfig',
+]
+
+INSTALLED_APPS = SHARED_APPS + [apps for apps in TENANT_APPS if apps not in SHARED_APPS]
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django_tenants.middleware.main.TenantMainMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -166,10 +175,10 @@ REST_FRAMEWORK = {
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-"""
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',  # Use PostgreSQL backend
+        'ENGINE': 'django_tenants.postgresql_backend',  # Use PostgreSQL backend
         'HOST': 'ep-orange-math-a526glpg-pooler.us-east-2.aws.neon.tech',  # Neon pooled endpoint
         'USER': 'neondb_owner',                     # Neon database user
         'NAME': 'neondb',                           # Neon database name
@@ -185,7 +194,11 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+"""
 
+DATABASE_ROUTERS = (
+    'django_tenants.routers.TenantSyncRouter',
+)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -227,6 +240,10 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+TENANT_MODEL = 'frontline.Tenant'
+TENANT_DOMAIN_MODEL = 'frontline.Domain'
+PUBLIC_SCHEMA_URLCONF = 'frontline.urls'
+DOMAIN = 'localhost'
 
 INTERNAL_IPS = [
     # ...
