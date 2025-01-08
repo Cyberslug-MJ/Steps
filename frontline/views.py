@@ -667,22 +667,23 @@ def UserDetail(request,pk):
     except CustomUser.DoesNotExist:
         return Response( status = status.HTTP_404_NOT_FOUND)
     
-    if user.approved and user.verified:
-        if request.method == 'GET':
-            serializer = UserSerializer(user)
-            return Response({"data":serializer.data},status=status.HTTP_200_OK)
+
+    if request.method == 'GET':
+        serializer = UserSerializer(user)
+        return Response({"data":serializer.data},status=status.HTTP_200_OK)
+
+    if request.method == 'DELETE':
+        fullname = user.get_full_name()
+        try:
+            data = request.data['name']
+        except Exception as e:
+            return Response({"detail":f"{e}"},status=status.HTTP_400_BAD_REQUEST)
         
-        if request.method == 'DELETE':
-            fullname = user.get_full_name()
-            try:
-                data = request.data['name']
-            except Exception as e:
-                return Response({"detail":f"{e}"},status=status.HTTP_400_BAD_REQUEST)
-            
-            if fullname == data:
-                user.delete()
-                return Response(status = status.HTTP_204_NO_CONTENT)
-            
+        if fullname == data:
+            user.delete()
+            return Response(status = status.HTTP_204_NO_CONTENT)
+
+    if user.approved and user.verified:            
         if request.method in ['PATCH','PUT']:
             partial = request.method == ['PATCH']
             serializer = UserSerializer(user,data=request.data,partial=partial)
